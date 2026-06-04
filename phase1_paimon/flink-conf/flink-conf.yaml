@@ -1,0 +1,14 @@
+# Flink Configuration
+jobmanager.rpc.address: flink-jm
+jobmanager.memory.process.size: 2048m
+taskmanager.memory.process.size: 4096m
+taskmanager.numberOfTaskSlots: 4
+
+# Checkpoint (required for Paimon exactly-once writes)
+execution.checkpointing.interval: 30s
+execution.checkpointing.mode: EXACTLY_ONCE
+state.backend: hashmap
+state.checkpoints.dir: file:///opt/paimon/data/checkpoints
+
+# Paimon specific (will be downloaded at runtime via SQL Client)
+# Paimon jars must be placed in /opt/flink/lib/ or added via ADD JAR
