@@ -1,5 +1,17 @@
 version: '3.8'
 
+# ================================================================
+# Kafka + Flink + Paimon 环境
+# ================================================================
+# 注意: Paimon 不是独立服务，而是 Flink 的连接器 JAR。
+# 启动后需要手动下载 Paimon JAR 放入 Flink lib 目录:
+#   wget https://repo1.maven.org/maven2/org/apache/paimon/paimon-flink-1.18/0.7.0/paimon-flink-1.18-0.7.0.jar
+#   docker cp paimon-flink-1.18-0.7.0.jar flink-jm:/opt/flink/lib/
+#   docker restart flink-jm flink-tm
+#
+# 详见: README.md 中 "下载 Paimon JAR" 章节
+# ================================================================
+
 networks:
   sql-agent-net:
     driver: bridge
