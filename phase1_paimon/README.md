@@ -34,15 +34,43 @@ docker exec -it flink-jm sql-client.sh
 
 ### 3. 按顺序执行 SQL 教程
 
-在 SQL Client 中逐条执行 `sql/` 目录下的脚本。可以将 SQL 内容复制粘贴到 Client。
+在 SQL Client 中逐条执行 `sql/` 目录下的脚本。可以将 SQL 内容复制粘贴到 Client：
 
-### 4. 提交 DataStream 作业
+```sql
+-- 直接复制到 SQL Client 执行
+CREATE CATALOG paimon_catalog WITH (
+    'type' = 'filesystem',
+    'warehouse' = 'file:///opt/paimon/data/warehouse'
+);
+```
+
+### 4. 下载 Paimon JAR（首次运行必需）
+
+Paimon Flink 连接器需要额外的 JAR 包。下载并复制到 Flink 容器:
+
+```bash
+# 下载 Paimon Flink 连接器 JAR
+wget https://repo1.maven.org/maven2/org/apache/paimon/paimon-flink-1.18/0.7.0/paimon-flink-1.18-0.7.0.jar
+
+# 复制到 Flink JobManager 容器
+docker cp paimon-flink-1.18-0.7.0.jar flink-jm:/opt/flink/lib/
+
+# 重启 Flink 以加载 JAR
+docker restart flink-jm flink-tm
+```
+
+如果下载困难，也可以从阿里云 Maven 镜像下载:
+```bash
+wget https://maven.aliyun.com/repository/public/org/apache/paimon/paimon-flink-1.18/0.7.0/paimon-flink-1.18-0.7.0.jar
+```
+
+### 5. 提交 DataStream 作业
 
 ```bash
 docker exec flink-jm flink run -py /opt/flink/job/realtime_writer.py
 ```
 
-### 5. 运行 Kafka Producer（可选，在宿主机新终端）
+### 6. 运行 Kafka Producer（可选，在宿主机新终端）
 
 ```bash
 pip install kafka-python faker

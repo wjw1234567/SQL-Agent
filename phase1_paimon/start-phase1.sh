@@ -17,24 +17,21 @@ echo "================================================"
 echo ""
 echo "[Step 1/4] Starting Docker containers..."
 docker compose -f docker-compose-phase1.yml up -d
-echo "Waiting for services to be ready..."
-sleep 10
 
-# Step 2: 验证容器状态
+# Step 2: 等待服务就绪（使用轮询替代固定 sleep）
 echo ""
-echo "[Step 2/4] Verifying containers..."
-docker ps --format "table {{.Names}}\t{{.Status}}" | head -5
+echo "[Step 2/4] Waiting for services to be ready..."
+echo "  - Waiting for Flink WebUI..."
+until curl -s http://localhost:8081 > /dev/null 2>&1; do
+    echo "    Flink not ready yet, retrying in 5s..."
+    sleep 5
+done
+echo "  - Flink WebUI ready!"
 
 # Step 3: 创建 Kafka topic
 echo ""
-echo "[Step 3/4] Creating Kafka topic 'orders'..."
-docker exec kafka kafka-topics.sh \
-    --create \
-    --topic orders \
-    --bootstrap-server localhost:9092 \
-    --partitions 3 \
-    --replication-factor 1 \
-    --if-not-exists
+echo "[Step 3/4] Creating Kafka topics..."
+scripts/init-kafka-topics.sh
 
 # Step 4: 显示访问信息
 echo ""
@@ -56,4 +53,8 @@ echo "     - 04_batch_write.sql"
 echo "     - 05_query.sql"
 echo "  3. Or run the Python producer:"
 echo "     python flink-job/kafka_producer.py"
+echo ""
+echo "Before running Flink jobs, download Paimon JAR:"
+echo "  wget https://repo1.maven.org/maven2/org/apache/paimon/paimon-flink-1.18/0.7.0/paimon-flink-1.18-0.7.0.jar"
+echo "  docker cp paimon-flink-1.18-0.7.0.jar flink-jm:/opt/flink/lib/"
 echo "================================================"

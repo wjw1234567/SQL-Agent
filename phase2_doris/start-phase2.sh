@@ -17,28 +17,34 @@ echo "================================================"
 echo ""
 echo "[Step 1/5] Starting Docker containers..."
 docker compose -f docker-compose-phase2.yml up -d
-echo "Waiting for services..."
-sleep 20
 
-# Step 2: 验证容器
+# Step 2: 等待服务就绪
 echo ""
-echo "[Step 2/5] Verifying containers..."
-docker ps --format "table {{.Names}}\t{{.Status}}"
+echo "[Step 2/5] Waiting for services to be ready..."
+
+echo "  - Waiting for Doris FE..."
+# Doris FE healthcheck 已配置在 docker-compose 中，等待容器健康
+until docker ps --filter "name=doris-fe" --filter "health=healthy" | grep -q healthy; do
+    echo "    Doris FE not ready, retrying in 5s..."
+    sleep 5
+done
+echo "  - Doris FE ready!"
+
+echo "  - Waiting for Flink WebUI..."
+until curl -s http://localhost:8081 > /dev/null 2>&1; do
+    echo "    Flink not ready yet, retrying in 5s..."
+    sleep 5
+done
+echo "  - Flink WebUI ready!"
 
 # Step 3: 创建 Kafka topic
 echo ""
-echo "[Step 3/5] Creating Kafka topic 'orders'..."
-docker exec kafka kafka-topics.sh \
-    --create \
-    --topic orders \
-    --bootstrap-server localhost:9092 \
-    --partitions 3 \
-    --replication-factor 1 \
-    --if-not-exists
+echo "[Step 3/5] Creating Kafka topics..."
+../phase1_paimon/scripts/init-kafka-topics.sh
 
-# Step 4: 验证 Doris 就绪
+# Step 4: 验证 Doris
 echo ""
-echo "[Step 4/5] Verifying Doris is ready..."
+echo "[Step 4/5] Verifying Doris..."
 docker exec doris-fe mysql -h 127.0.0.1 -P 9030 -uroot -e "SELECT 1 AS doris_ready;"
 
 # Step 5: 显示访问信息
@@ -60,4 +66,8 @@ echo "     - 08_query_via_doris.sql"
 echo "     - 09_flink_to_doris.sql"
 echo "  3. Or run dual writer:"
 echo "     docker exec flink-jm flink run -py /opt/flink/job/dual_writer.py"
+echo ""
+echo "Before running Flink jobs, download Paimon JAR:"
+echo "  wget https://repo1.maven.org/maven2/org/apache/paimon/paimon-flink-1.18/0.7.0/paimon-flink-1.18-0.7.0.jar"
+echo "  docker cp paimon-flink-1.18-0.7.0.jar flink-jm:/opt/flink/lib/"
 echo "================================================"

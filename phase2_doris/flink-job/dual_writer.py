@@ -16,7 +16,7 @@
 
 from pyflink.common import Configuration
 from pyflink.datastream import StreamExecutionEnvironment
-from pyflink.table import StreamTableEnvironment
+from pyflink.table import StatementSet, StreamTableEnvironment
 
 
 def main():
@@ -66,15 +66,7 @@ def main():
         """
     )
 
-    # ---- 3. 写入 Paimon ----
-    table_env.execute_sql(
-        """
-        INSERT INTO orders
-        SELECT * FROM kafka_orders
-        """
-    ).wait()
-
-    # ---- 4. 创建 Doris 映射表 ----
+    # ---- 3. 创建 Doris 映射表 ----
     table_env.execute_sql(
         """
         CREATE TEMPORARY TABLE doris_sink (
@@ -99,15 +91,18 @@ def main():
         """
     )
 
-    # ---- 5. 写入 Doris ----
-    table_env.execute_sql(
-        """
-        INSERT INTO doris_sink
-        SELECT order_id, user_id, category,
-               total_amount, order_status, order_ts
-        FROM kafka_orders
-        """
-    ).wait()
+    # ---- 4. 使用 StatementSet 同时提交两个写入作业 ----
+    # 关键: StatementSet 将多个 INSERT 合并为一个 Flink 作业，
+    # 避免逐个 .wait() 导致后续代码死锁
+    stmt_set = table_env.create_statement_set()
+    stmt_set.add_insert_sql("INSERT INTO orders SELECT * FROM kafka_orders")
+    stmt_set.add_insert_sql(
+        "INSERT INTO doris_sink "
+        "SELECT order_id, user_id, category, "
+        "       total_amount, order_status, order_ts "
+        "FROM kafka_orders"
+    )
+    stmt_set.execute().wait()
 
 
 if __name__ == "__main__":

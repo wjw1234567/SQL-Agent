@@ -1,0 +1,13 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(git add *)",
+      "Bash(git commit *)",
+      "Skill(superpowers:writing-plans)",
+      "Skill(superpowers:subagent-driven-development)",
+      "Bash(chmod +x *)",
+      "Bash(git *)",
+      "Skill(superpowers:requesting-code-review)"
+    ]
+  }
+}

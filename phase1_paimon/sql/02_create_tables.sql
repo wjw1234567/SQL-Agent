@@ -98,3 +98,18 @@ CREATE TABLE IF NOT EXISTS order_stats (
 
 -- 查看所有表
 SHOW TABLES;
+
+-- ================================================================
+-- 关于 order_stats 的使用说明
+-- ================================================================
+-- order_stats 表设计用于接收 Flink SQL 窗口聚合的结果，例如:
+--   INSERT INTO order_stats
+--   SELECT category, COUNT(*), SUM(total_amount),
+--          TUMBLE_START(order_ts, INTERVAL '1' HOUR),
+--          TUMBLE_END(order_ts, INTERVAL '1' HOUR)
+--   FROM orders
+--   GROUP BY category, TUMBLE(order_ts, INTERVAL '1' HOUR);
+--
+-- 当前教程专注于演示 insert/overwrite/query 基础操作，
+-- 窗口聚合写入可在掌握基础后自行尝试。
+-- ================================================================
