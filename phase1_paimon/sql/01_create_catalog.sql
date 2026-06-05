@@ -9,24 +9,24 @@
 --   type='hive'           — 元数据存储在 Hive Metastore
 --   type='jdbc'           — 元数据存储在关系数据库（MySQL/PostgreSQL）
 --
--- 本教程使用 filesystem 类型，适合学习和单机部署。
--- ================================================================
-
+-- 新版本 Paimon (1.x+) 使用 'type' = 'paimon'
+-- 旧版本 Paimon (0.x)  使用 'type' = 'filesystem'
 -- ================================================================
 -- 【参数详解】
 -- ---------------------------------------------------------------
 -- 参数名          | 必需 | 默认值   | 可选值              | 说明
 -- ================================================================
--- type            | 是   | 无      | filesystem,hive,jdbc | Catalog 类型
--- warehouse       | 是   | 无      |                      | 数据存储根路径
---                |      |         |                      | 本地: /opt/paimon/data
---                |      |         |                      | HDFS: hdfs://namenode:8020/...
---                |      |         |                      | S3:  s3://bucket/...
+-- type            | 是   | 无      | paimon             | Catalog 类型，固定为 'paimon'
+-- warehouse       | 是   | 无      |                    | 数据存储根路径
+--                |      |         |                    | 本地: /opt/paimon/data
+--                |      |         |                    | HDFS: hdfs://namenode:8020/...
+--                |      |         |                    | S3:  s3://bucket/...
+-- metastore       | 否   | filesystem | filesystem,hive | 元数据存储方式
 -- ================================================================
 
--- 创建 Paimon Filesystem Catalog
+-- 创建 Paimon Catalog（1.x 版本语法）
 CREATE CATALOG paimon_catalog WITH (
-    'type' = 'filesystem',
+    'type' = 'paimon',
     'warehouse' = 'file:///opt/paimon/data/warehouse'
 );
 

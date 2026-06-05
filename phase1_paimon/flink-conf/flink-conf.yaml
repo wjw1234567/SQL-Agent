@@ -12,3 +12,23 @@ state.checkpoints.dir: file:///opt/paimon/data/checkpoints
 
 # Paimon specific (will be downloaded at runtime via SQL Client)
 # Paimon jars must be placed in /opt/flink/lib/ or added via ADD JAR
+blob.server.port: 6124
+query.server.port: 6125
+
+jobmanager.rpc.address: flink-jm
+jobmanager.memory.process.size: 2048m
+
+
+jobmanager.rpc.address: flink-jm
+taskmanager.memory.process.size: 4096m
+taskmanager.numberOfTaskSlots: 4
+
+
+jobmanager.rpc.address: flink-jm
+jobmanager.memory.process.size: 2048m
+
+
+jobmanager.rpc.address: flink-jm
+taskmanager.memory.process.size: 4096m
+taskmanager.numberOfTaskSlots: 4
+

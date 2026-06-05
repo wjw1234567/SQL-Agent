@@ -75,7 +75,7 @@ def parse_and_write_to_paimon(stream: DataStream) -> None:
     table_env.execute_sql(
         """
         CREATE CATALOG paimon_catalog WITH (
-            'type' = 'filesystem',
+            'type' = 'paimon',
             'warehouse' = 'file:///opt/paimon/data/warehouse'
         )
         """

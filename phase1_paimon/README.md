@@ -113,9 +113,7 @@ docker logs flink-jm --tail 20
 
 ```bash
 # 检查 Kafka 是否就绪（轮询直到成功）
-docker exec kafka kafka-topics \
-  --list \
-  --bootstrap-server localhost:9092
+docker exec kafka kafka-topics --list --bootstrap-server localhost:9092
 ```
 
 如果返回空列表（没有 topic），说明 Kafka 正常运行。
@@ -129,12 +127,12 @@ docker exec kafka kafka-topics \
 ### 2.5 创建订单 topic
 
 ```bash
-docker exec kafka kafka-topics \
-  --create \
-  --topic orders \
-  --bootstrap-server localhost:9092 \
-  --partitions 3 \
-  --replication-factor 1 \
+docker exec kafka kafka-topics `
+  --create `
+  --topic orders `
+  --bootstrap-server localhost:9092 `
+  --partitions 3 `
+  --replication-factor 1 `
   --if-not-exists
 ```
 
@@ -156,17 +154,17 @@ Paimon 不是独立服务，它是一个 **Flink 连接器**（connector）。Fl
 ```bash
 # 1. 从 Maven 中央仓库下载 Paimon Flink 连接器 JAR
 #    flink-1.18 对应 paimon-flink-1.18 版本
-wget https://repo1.maven.org/maven2/org/apache/paimon/paimon-flink-1.18/0.7.0/paimon-flink-1.18-0.7.0.jar
+wget https://repo1.maven.org/maven2/org/apache/paimon/paimon-flink-1.18/0.7.0/paimon-flink-1.18-0.9.0.jar
 
 # 如果 wget 没有，用 curl 也可以:
 # curl -O https://repo1.maven.org/maven2/org/apache/paimon/paimon-flink-1.18/0.7.0/paimon-flink-1.18-0.7.0.jar
 
 # 2. 复制到 Flink JobManager 容器的 lib 目录
 #    Flink 启动时会自动加载 /opt/flink/lib/ 下的所有 JAR
-docker cp paimon-flink-1.18-0.7.0.jar flink-jm:/opt/flink/lib/
+docker cp paimon-flink-1.18-0.9.0.jar flink-jm:/opt/flink/lib/
 
 # 3. 同样复制到 TaskManager
-docker cp paimon-flink-1.18-0.7.0.jar flink-tm:/opt/flink/lib/
+docker cp paimon-flink-1.18-0.9.0.jar flink-tm:/opt/flink/lib/
 
 # 4. 重启 Flink 容器使 JAR 生效
 docker restart flink-jm flink-tm
@@ -179,10 +177,10 @@ docker ps | grep flink
 ### 3.3 验证 JAR 已加载
 
 ```bash
-docker exec flink-jm ls /opt/flink/lib/ | grep paimon
+ docker exec -it flink-jm sh -c "ls /opt/flink/lib/ | grep paimon"
 ```
 
-应该输出：`paimon-flink-1.18-0.7.0.jar`
+应该输出：`paimon-flink-1.18-0.9.0.jar`
 
 ---
 
@@ -215,14 +213,15 @@ Flink SQL>
 
 ```sql
 CREATE CATALOG paimon_catalog WITH (
-    'type' = 'filesystem',
+    'type' = 'paimon',
     'warehouse' = 'file:///opt/paimon/data/warehouse'
 );
 ```
 
 **参数详解：**
-- `type = 'filesystem'` —— 元数据存储在文件系统（适合学习）
-  - 其他选项：`hive`（对接 Hive Metastore）、`jdbc`（对接数据库）
+- `type = 'paimon'` —— Catalog 类型，固定为 'paimon'
+  - `metastore` 默认 `filesystem`（元数据存储在文件系统）
+  - 其他选项：`metastore = 'hive'`（对接 Hive Metastore）
 - `warehouse = 'file:///opt/paimon/data/warehouse'` —— 数据存储根路径
   - `file://` 表示本地文件系统
   - 对应的就是 docker-compose 中挂载的 `../data/paimon:/opt/paimon/data`

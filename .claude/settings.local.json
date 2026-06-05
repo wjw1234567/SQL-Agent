@@ -8,7 +8,20 @@
       "Bash(chmod +x *)",
       "Bash(git *)",
       "Skill(superpowers:requesting-code-review)",
-      "Skill(superpowers:finishing-a-development-branch)"
+      "Skill(superpowers:finishing-a-development-branch)",
+      "Bash(powershell *)",
+      "WebFetch(domain:hub.docker.com)",
+      "WebSearch",
+      "WebFetch(domain:bitnami.com)",
+      "Bash(docker pull *)",
+      "Bash(docker info *)",
+      "Bash(docker tag *)",
+      "Bash(curl -s -o /dev/null -w \"%{http_code}\" --connect-timeout 5 https://docker.m.daocloud.io/v2/)",
+      "Bash(curl -s -o /dev/null -w \"%{http_code}\" --connect-timeout 5 https://dockerhub.icu/v2/)",
+      "Bash(curl -s -o /dev/null -w \"%{http_code}\" --connect-timeout 5 https://docker.xuanyuan.me/v2/)",
+      "Bash(curl *)",
+      "WebFetch(domain:paimon.apache.org)",
+      "WebFetch(domain:repo1.maven.org)"
     ]
   }
 }

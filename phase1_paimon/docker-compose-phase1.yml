@@ -55,7 +55,7 @@ services:
       - sql-agent-net
 
   flink-jobmanager:
-    image: apache/flink:1.18-scala_2.12-java11
+    image: apache/flink:1.18.1-scala_2.12-java11
     container_name: flink-jm
     ports:
       - "8081:8081"
@@ -76,7 +76,7 @@ services:
       - sql-agent-net
 
   flink-taskmanager:
-    image: apache/flink:1.18-scala_2.12-java11
+    image: apache/flink:1.18.1-scala_2.12-java11
     container_name: flink-tm
     command: taskmanager
     environment:

@@ -158,7 +158,7 @@ docker exec -it flink-jm sql-client.sh
 -- 如果 Catalog 之前已创建，它会自动加载
 -- 如果没有，重新创建:
 CREATE CATALOG paimon_catalog WITH (
-    'type' = 'filesystem',
+    'type' = 'paimon',
     'warehouse' = 'file:///opt/paimon/data/warehouse'
 );
 USE CATALOG paimon_catalog;

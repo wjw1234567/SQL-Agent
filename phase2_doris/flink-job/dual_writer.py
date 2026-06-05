@@ -31,7 +31,7 @@ def main():
     table_env.execute_sql(
         """
         CREATE CATALOG paimon_catalog WITH (
-            'type' = 'filesystem',
+            'type' = 'paimon',
             'warehouse' = 'file:///opt/paimon/data/warehouse'
         )
         """
