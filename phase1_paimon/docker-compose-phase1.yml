@@ -1,15 +1,14 @@
-version: '3.8'
-
 # ================================================================
 # Kafka + Flink + Paimon 环境
+# 镜像源说明：
+#   Kafka + Zookeeper: confluentinc/cp-kafka (替代已下线的 bitnami/kafka)
+#   Flink: 官方 flink:1.18-java11
 # ================================================================
 # 注意: Paimon 不是独立服务，而是 Flink 的连接器 JAR。
 # 启动后需要手动下载 Paimon JAR 放入 Flink lib 目录:
 #   wget https://repo1.maven.org/maven2/org/apache/paimon/paimon-flink-1.18/0.7.0/paimon-flink-1.18-0.7.0.jar
 #   docker cp paimon-flink-1.18-0.7.0.jar flink-jm:/opt/flink/lib/
 #   docker restart flink-jm flink-tm
-#
-# 详见: README.md 中 "下载 Paimon JAR" 章节
 # ================================================================
 
 networks:
@@ -18,32 +17,34 @@ networks:
 
 services:
   zookeeper:
-    image: bitnami/zookeeper:3.9
+    image: zookeeper:3.9
     container_name: zk
     ports:
       - "2181:2181"
     environment:
-      - ALLOW_ANONYMOUS_LOGIN=yes
+      ZOO_TICK_TIME: 2000
     mem_limit: 512m
     networks:
       - sql-agent-net
 
   kafka:
-    image: bitnami/kafka:3.6
+    image: confluentinc/cp-kafka:7.6.0
     container_name: kafka
     ports:
       - "9092:9092"
       - "29092:29092"
     environment:
-      - KAFKA_BROKER_ID=1
-      - KAFKA_CFG_ZOOKEEPER_CONNECT=zookeeper:2181
-      - ALLOW_PLAINTEXT_LISTENER=yes
-      - KAFKA_CFG_LISTENER_SECURITY_PROTOCOL_MAP=CLIENT:PLAINTEXT,EXTERNAL:PLAINTEXT
-      - KAFKA_CFG_LISTENERS=CLIENT://:9092,EXTERNAL://:29092
-      - KAFKA_CFG_ADVERTISED_LISTENERS=CLIENT://kafka:9092,EXTERNAL://localhost:29092
-      - KAFKA_CFG_INTER_BROKER_LISTENER_NAME=CLIENT
+      KAFKA_BROKER_ID: 1
+      KAFKA_ZOOKEEPER_CONNECT: zookeeper:2181
+      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://kafka:9092,PLAINTEXT_HOST://localhost:29092
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: PLAINTEXT:PLAINTEXT,PLAINTEXT_HOST:PLAINTEXT
+      KAFKA_LISTENERS: PLAINTEXT://0.0.0.0:9092,PLAINTEXT_HOST://0.0.0.0:29092
+      KAFKA_INTER_BROKER_LISTENER_NAME: PLAINTEXT
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+      KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR: 1
+      KAFKA_TRANSACTION_STATE_LOG_MIN_ISR: 1
     volumes:
-      - ../data/kafka:/bitnami/kafka/data
+      - ../data/kafka:/var/lib/kafka/data
     mem_limit: 2g
     depends_on:
       - zookeeper
