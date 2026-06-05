@@ -19,18 +19,19 @@ networks:
 services:
   # ========== Phase 1 服务 (完整移植) ==========
   zookeeper:
-    image: zookeeper:3.9
+    image: confluentinc/cp-zookeeper:7.5.0
     container_name: zk
     ports:
       - "2181:2181"
     environment:
-      ZOO_TICK_TIME: 2000
+      ZOOKEEPER_CLIENT_PORT: 2181
+      ZOOKEEPER_TICK_TIME: 2000
     mem_limit: 512m
     networks:
       - sql-agent-net
 
   kafka:
-    image: confluentinc/cp-kafka:7.6.0
+    image: confluentinc/cp-kafka:7.5.0
     container_name: kafka
     ports:
       - "9092:9092"
