@@ -5,7 +5,7 @@
 echo ">>> Waiting for Kafka to be ready..."
 MAX_RETRIES=30
 RETRY_COUNT=0
-until docker exec kafka kafka-topics.sh --list --bootstrap-server localhost:9092 > /dev/null 2>&1; do
+until docker exec kafka kafka-topics --list --bootstrap-server localhost:9092 > /dev/null 2>&1; do
     RETRY_COUNT=$((RETRY_COUNT + 1))
     if [ $RETRY_COUNT -ge $MAX_RETRIES ]; then
         echo ">>> ERROR: Kafka not ready after $MAX_RETRIES attempts."
@@ -16,7 +16,7 @@ until docker exec kafka kafka-topics.sh --list --bootstrap-server localhost:9092
 done
 
 echo ">>> Creating Kafka topic: orders..."
-docker exec kafka kafka-topics.sh \
+docker exec kafka kafka-topics \
   --create \
   --topic orders \
   --bootstrap-server localhost:9092 \
@@ -25,7 +25,7 @@ docker exec kafka kafka-topics.sh \
   --if-not-exists
 
 echo ">>> Verifying topics..."
-docker exec kafka kafka-topics.sh \
+docker exec kafka kafka-topics \
   --list \
   --bootstrap-server localhost:9092
 

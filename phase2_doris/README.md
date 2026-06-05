@@ -114,7 +114,7 @@ docker exec doris-fe mysql -h 127.0.0.1 -P 9030 -uroot -e "SHOW PROC '/backends'
 ## 第三节：创建 Kafka Topic（如果 Phase 1 清理了）
 
 ```bash
-docker exec kafka kafka-topics.sh \
+docker exec kafka kafka-topics \
   --create \
   --topic orders \
   --bootstrap-server localhost:9092 \

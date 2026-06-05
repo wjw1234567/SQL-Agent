@@ -113,7 +113,7 @@ docker logs flink-jm --tail 20
 
 ```bash
 # 检查 Kafka 是否就绪（轮询直到成功）
-docker exec kafka kafka-topics.sh \
+docker exec kafka kafka-topics \
   --list \
   --bootstrap-server localhost:9092
 ```
@@ -122,14 +122,14 @@ docker exec kafka kafka-topics.sh \
 
 **命令解析：**
 - `docker exec kafka` —— 在 kafka 容器内执行命令
-- `kafka-topics.sh` —— Kafka 自带的 topic 管理工具
+- `kafka-topics` —— Kafka 自带的 topic 管理工具
 - `--bootstrap-server localhost:9092` —— 连接 Kafka（容器内用 localhost:9092）
 - `--list` —— 列出所有 topic
 
 ### 2.5 创建订单 topic
 
 ```bash
-docker exec kafka kafka-topics.sh \
+docker exec kafka kafka-topics \
   --create \
   --topic orders \
   --bootstrap-server localhost:9092 \
