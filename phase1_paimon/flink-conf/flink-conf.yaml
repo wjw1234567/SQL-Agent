@@ -8,27 +8,25 @@ taskmanager.numberOfTaskSlots: 4
 execution.checkpointing.interval: 30s
 execution.checkpointing.mode: EXACTLY_ONCE
 state.backend: hashmap
-state.checkpoints.dir: file:///opt/paimon/data/checkpoints
+state.checkpoints.dir: s3://paimon-bucket/checkpoints
 
-# Paimon specific (will be downloaded at runtime via SQL Client)
+# S3 (MinIO) configuration - Flink's S3 FS plugin uses these for Hadoop S3A
+s3.endpoint: http://minio:9000
+s3.path.style.access: true
+s3.access-key: minioadmin
+s3.secret-key: minioadmin
+
+# Paimon specific
 # Paimon jars must be placed in /opt/flink/lib/ or added via ADD JAR
 blob.server.port: 6124
 query.server.port: 6125
 
-jobmanager.rpc.address: flink-jm
-jobmanager.memory.process.size: 2048m
-
-
-jobmanager.rpc.address: flink-jm
-taskmanager.memory.process.size: 4096m
-taskmanager.numberOfTaskSlots: 4
-
-
-jobmanager.rpc.address: flink-jm
-jobmanager.memory.process.size: 2048m
-
-
-jobmanager.rpc.address: flink-jm
-taskmanager.memory.process.size: 4096m
-taskmanager.numberOfTaskSlots: 4
-
+# ================================================================
+# Fallback: Local filesystem configuration
+#   Comment out S3 lines above and uncomment below:
+# ================================================================
+# state.checkpoints.dir: file:///opt/paimon/data/checkpoints
+# s3.endpoint:
+# s3.path.style.access:
+# s3.access-key:
+# s3.secret-key:

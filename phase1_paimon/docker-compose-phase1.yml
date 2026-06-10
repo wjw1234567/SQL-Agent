@@ -1,8 +1,9 @@
 # ================================================================
 # Kafka + Flink + Paimon 环境
 # 镜像源说明：
-#   Kafka + Zookeeper: confluentinc/cp-kafka (替代已下线的 bitnami/kafka)
-#   Flink: 官方 flink:1.18-java11
+#   Kafka + Zookeeper: confluentinc/cp-kafka
+#   Flink: apache/flink:1.18.1-scala_2.12-java11
+#   MinIO: minio/minio (S3-compatible object storage for Paimon)
 # ================================================================
 # 注意: Paimon 不是独立服务，而是 Flink 的连接器 JAR。
 # 启动后需要手动下载 Paimon JAR 放入 Flink lib 目录:
@@ -28,8 +29,6 @@ services:
     networks:
       - sql-agent-net
 
-
-
   kafka:
     image: confluentinc/cp-kafka:7.5.0
     container_name: kafka
@@ -54,31 +53,73 @@ services:
     networks:
       - sql-agent-net
 
+  minio:
+    image: minio/minio:latest
+    container_name: minio
+    ports:
+      - "9000:9000"   # S3 API
+      - "9001:9001"   # Web Console
+    environment:
+      MINIO_ROOT_USER: minioadmin
+      MINIO_ROOT_PASSWORD: minioadmin
+    volumes:
+      - ../data/minio:/data
+    command: server /data --console-address ":9001"
+    mem_limit: 512m
+    networks:
+      - sql-agent-net
+
+  minio-init:
+    image: minio/mc:latest
+    container_name: minio-init
+    depends_on:
+      - minio
+    entrypoint: >
+      /bin/sh -c "
+      echo 'Waiting for MinIO...';
+      until (/usr/bin/mc config host add myminio http://minio:9000 minioadmin minioadmin) do sleep 2; done;
+      echo 'Creating bucket paimon-bucket...';
+      /usr/bin/mc mb myminio/paimon-bucket --ignore-existing;
+      echo 'Bucket created successfully';
+      "
+    networks:
+      - sql-agent-net
+
   flink-jobmanager:
     image: apache/flink:1.18.1-scala_2.12-java11
     container_name: flink-jm
     ports:
       - "8081:8081"
       - "6123:6123"
-    command: jobmanager
+    command: >
+      /bin/sh -c "
+      cp /opt/flink/opt/flink-s3-fs-hadoop-*.jar /opt/flink/lib/ &&
+      exec /docker-entrypoint.sh jobmanager
+      "
     environment:
       - |
         FLINK_PROPERTIES=
         jobmanager.rpc.address: flink-jm
         jobmanager.memory.process.size: 2048m
     volumes:
-      - ../data/paimon:/opt/paimon/data
+      # - ../data/paimon:/opt/paimon/data     # 备用：取消注释以使用本地文件存储
       - ./flink-conf/flink-conf.yaml:/opt/flink/conf/flink-conf.yaml
       - ./sql:/opt/flink/sql
       - ./flink-job:/opt/flink/job
     mem_limit: 2g
+    depends_on:
+      - minio-init
     networks:
       - sql-agent-net
 
   flink-taskmanager:
     image: apache/flink:1.18.1-scala_2.12-java11
     container_name: flink-tm
-    command: taskmanager
+    command: >
+      /bin/sh -c "
+      cp /opt/flink/opt/flink-s3-fs-hadoop-*.jar /opt/flink/lib/ &&
+      exec /docker-entrypoint.sh taskmanager
+      "
     environment:
       - |
         FLINK_PROPERTIES=
@@ -86,7 +127,7 @@ services:
         taskmanager.memory.process.size: 4096m
         taskmanager.numberOfTaskSlots: 4
     volumes:
-      - ../data/paimon:/opt/paimon/data
+      # - ../data/paimon:/opt/paimon/data     # 备用：取消注释以使用本地文件存储
       - ./flink-conf/flink-conf.yaml:/opt/flink/conf/flink-conf.yaml
       - ./sql:/opt/flink/sql
       - ./flink-job:/opt/flink/job

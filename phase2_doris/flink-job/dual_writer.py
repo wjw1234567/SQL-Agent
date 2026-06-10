@@ -2,8 +2,8 @@
 # Flink DataStream: 同时写入 Paimon + Doris（双写）
 # ================================================================
 # 这个作业演示如何在一个 Flink 作业中同时写入两个系统:
-#   - Paimon: 湖存储（作为数据底座，适合离线分析）
-#   - Doris:  查询加速（适合实时分析，MySQL 协议接口）
+#   - Paimon: S3 存储（数据底座，适合离线分析）
+#   - Doris:  查询加速（MySQL 协议接口）
 #
 # 运行方式:
 #   docker exec flink-jm flink run -py /opt/flink/job/dual_writer.py
@@ -20,19 +20,23 @@ from pyflink.table import StatementSet, StreamTableEnvironment
 
 
 def main():
-    # 执行环境
     config = Configuration()
     config.set_string("execution.checkpointing.interval", "30s")
     env = StreamExecutionEnvironment.get_execution_environment(config)
     env.set_parallelism(2)
     table_env = StreamTableEnvironment.create(env)
 
-    # ---- 1. 注册 Paimon Catalog ----
+    # ---- 1. 注册 Paimon Catalog (S3/MinIO 存储) ----
+    # 备用: 去掉 S3 参数使用 'warehouse' = 'file:///opt/paimon/data/warehouse'
     table_env.execute_sql(
         """
         CREATE CATALOG paimon_catalog WITH (
             'type' = 'paimon',
-            'warehouse' = 'file:///opt/paimon/data/warehouse'
+            'warehouse' = 's3://paimon-bucket/warehouse',
+            's3.endpoint' = 'http://minio:9000',
+            's3.access-key' = 'minioadmin',
+            's3.secret-key' = 'minioadmin',
+            's3.path.style.access' = 'true'
         )
         """
     )
@@ -92,8 +96,6 @@ def main():
     )
 
     # ---- 4. 使用 StatementSet 同时提交两个写入作业 ----
-    # 关键: StatementSet 将多个 INSERT 合并为一个 Flink 作业，
-    # 避免逐个 .wait() 导致后续代码死锁
     stmt_set = table_env.create_statement_set()
     stmt_set.add_insert_sql("INSERT INTO orders SELECT * FROM kafka_orders")
     stmt_set.add_insert_sql(

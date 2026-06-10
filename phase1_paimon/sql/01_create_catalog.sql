@@ -14,21 +14,37 @@
 -- ================================================================
 -- 【参数详解】
 -- ---------------------------------------------------------------
--- 参数名          | 必需 | 默认值   | 可选值              | 说明
+-- 参数名                 | 必需 | 默认值   | 说明
 -- ================================================================
--- type            | 是   | 无      | paimon             | Catalog 类型，固定为 'paimon'
--- warehouse       | 是   | 无      |                    | 数据存储根路径
---                |      |         |                    | 本地: /opt/paimon/data
---                |      |         |                    | HDFS: hdfs://namenode:8020/...
---                |      |         |                    | S3:  s3://bucket/...
--- metastore       | 否   | filesystem | filesystem,hive | 元数据存储方式
+-- type                   | 是   | 无      | Catalog 类型，固定为 'paimon'
+-- warehouse              | 是   | 无      | 数据存储根路径
+--                       |      |         |   S3:  s3://bucket/warehouse
+--                       |      |         |   本地: file:///opt/paimon/data/warehouse
+-- metastore              | 否   | filesystem | 元数据存储方式
+-- s3.endpoint            | 否   | 无      | S3 服务地址（MinIO 必需）
+-- s3.access-key          | 否   | 无      | S3 访问密钥
+-- s3.secret-key          | 否   | 无      | S3 安全密钥
+-- s3.path.style.access   | 否   | false   | 使用路径样式（MinIO 需设为 true）
 -- ================================================================
 
--- 创建 Paimon Catalog（1.x 版本语法）
+-- 创建 Paimon Catalog（MinIO S3 存储）
 CREATE CATALOG paimon_catalog WITH (
     'type' = 'paimon',
-    'warehouse' = 'file:///opt/paimon/data/warehouse'
+    'warehouse' = 's3://paimon-bucket/warehouse',
+    's3.endpoint' = 'http://minio:9000',
+    's3.access-key' = 'minioadmin',
+    's3.secret-key' = 'minioadmin',
+    's3.path.style.access' = 'true'
 );
+
+-- ================================================================
+-- 【备用方案：本地文件系统】
+-- ---------------------------------------------------------------
+-- CREATE CATALOG paimon_catalog WITH (
+--     'type' = 'paimon',
+--     'warehouse' = 'file:///opt/paimon/data/warehouse'
+-- );
+-- ================================================================
 
 -- 使用该 Catalog
 USE CATALOG paimon_catalog;

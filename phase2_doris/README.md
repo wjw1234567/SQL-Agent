@@ -142,7 +142,7 @@ docker exec flink-jm ls /opt/flink/lib/ | grep paimon
 
 ## 第五节：准备 Paimon 数据
 
-如果你在 Phase 1 已经创建了 Paimon 表并写入了数据，Paimon 的数据文件在 `./data/paimon/warehouse/` 目录下，是持久化的，重启后仍然存在。
+如果你在 Phase 1 已经创建了 Paimon 表并写入了数据，Paimon 的数据存储在 MinIO `paimon-bucket` 中（通过 S3 API）。重启后数据仍然存在。
 
 ### 5.1 验证 Paimon 表和数据
 
@@ -156,10 +156,14 @@ docker exec -it flink-jm sql-client.sh
 
 ```sql
 -- 如果 Catalog 之前已创建，它会自动加载
--- 如果没有，重新创建:
+-- 如果没有，重新创建（S3/MinIO 存储）:
 CREATE CATALOG paimon_catalog WITH (
     'type' = 'paimon',
-    'warehouse' = 'file:///opt/paimon/data/warehouse'
+    'warehouse' = 's3://paimon-bucket/warehouse',
+    's3.endpoint' = 'http://minio:9000',
+    's3.access-key' = 'minioadmin',
+    's3.secret-key' = 'minioadmin',
+    's3.path.style.access' = 'true'
 );
 USE CATALOG paimon_catalog;
 USE demo;
@@ -203,19 +207,24 @@ docker exec -it doris-fe mysql -h 127.0.0.1 -P 9030 -uroot
 在 Doris MySQL Client 中执行：
 
 ```sql
--- 注册 Paimon Catalog
+-- 注册 Paimon Catalog（S3/MinIO 存储）
 -- 告诉 Doris 去哪里找 Paimon 的数据
 CREATE CATALOG paimon_catalog PROPERTIES (
     'type' = 'paimon',
     'paimon.catalog.type' = 'filesystem',
-    'paimon.catalog.warehouse' = 'file:///opt/paimon/data/warehouse'
+    'paimon.catalog.warehouse' = 's3://paimon-bucket/warehouse',
+    'paimon.catalog.s3.endpoint' = 'http://minio:9000',
+    'paimon.catalog.s3.access-key' = 'minioadmin',
+    'paimon.catalog.s3.secret-key' = 'minioadmin',
+    'paimon.catalog.s3.path.style.access' = 'true'
 );
 ```
 
 **参数详解：**
 - `'type' = 'paimon'` —— 固定为 'paimon'，告诉 Doris 这是 Paimon 类型的 Catalog
 - `'paimon.catalog.type' = 'filesystem'` —— 与 Flink 中创建 Paimon Catalog 时一致
-- `'paimon.catalog.warehouse' = '...'` —— 指向相同的 warehouse 路径
+- `'paimon.catalog.warehouse' = '...'` —— 指向 S3 bucket 仓库路径
+- `'paimon.catalog.s3.*'` —— Doris 传递给 Paimon 的 S3 连接配置
 
 ### 6.3 切换到 Paimon Catalog 并查询
 

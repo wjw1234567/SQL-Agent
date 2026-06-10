@@ -10,7 +10,7 @@
 # 前提条件:
 #   1. Paimon 表已创建 (通过 02_create_tables.sql)
 #   2. Kafka topic 'orders' 已创建
-#   3. Paimon Flink jar 已放置在 /opt/flink/lib/
+#   3. MinIO S3 存储和 Paimon JAR 已配置
 # ================================================================
 
 import json
@@ -38,13 +38,6 @@ from pyflink.table import (
 def create_kafka_source(env: StreamExecutionEnvironment) -> DataStream:
     """
     创建 Kafka Source，消费 'orders' topic 的 JSON 消息。
-
-    参数说明:
-    - bootstrap.servers: Kafka 地址（容器内使用服务名 kafka:9092）
-    - group.id: 消费组名，用于记录消费偏移量
-    - topics: 订阅的 topic 列表
-    - KafkaOffsetsInitializer.latest(): 从最新位置开始消费
-                                      可选: earliest() 从最旧位置
     """
     source = (
         KafkaSource.builder()
@@ -64,29 +57,29 @@ def create_kafka_source(env: StreamExecutionEnvironment) -> DataStream:
 
 def parse_and_write_to_paimon(stream: DataStream) -> None:
     """
-    将 Kafka JSON 消息解析后写入 Paimon 表。
-
-    这里通过 Table API 将 DataStream 写入 Table，
-    利用 Paimon Flink Sink 的 exactly-once 语义。
+    将 Kafka JSON 消息解析后写入 Paimon 表 (S3 存储)。
     """
     table_env = StreamTableEnvironment.create(stream.execution_environment)
 
-    # 注册 Paimon Catalog
+    # 注册 Paimon Catalog (S3/MinIO 存储)
+    # 备用: 去掉 S3 参数使用 'warehouse' = 'file:///opt/paimon/data/warehouse'
     table_env.execute_sql(
         """
         CREATE CATALOG paimon_catalog WITH (
             'type' = 'paimon',
-            'warehouse' = 'file:///opt/paimon/data/warehouse'
+            'warehouse' = 's3://paimon-bucket/warehouse',
+            's3.endpoint' = 'http://minio:9000',
+            's3.access-key' = 'minioadmin',
+            's3.secret-key' = 'minioadmin',
+            's3.path.style.access' = 'true'
         )
         """
     )
     table_env.use_catalog("paimon_catalog")
     table_env.use_database("demo")
 
-    # 将 JSON 字符串解析为 Row
     parsed_stream = stream.map(lambda msg: json.loads(msg))
 
-    # 将 DataStream 转为 Table
     table = table_env.from_data_stream(
         parsed_stream,
         Schema.new_builder()
@@ -103,9 +96,6 @@ def parse_and_write_to_paimon(stream: DataStream) -> None:
         .build(),
     )
 
-    # 注册为临时视图，通过 SQL INSERT 写入 Paimon
-    # 注意: 对于流式作业，execute_insert() 注册 sink 但不阻塞，
-    # 实际执行由后续的 env.execute() 触发
     table_env.create_temporary_view("source_view", table)
     table_env.execute_sql("INSERT INTO orders SELECT * FROM source_view")
 
@@ -119,6 +109,4 @@ if __name__ == "__main__":
     kafka_stream = create_kafka_source(env)
     parse_and_write_to_paimon(kafka_stream)
 
-    # env.execute() 是作业的实际入口点
-    # 它会编译所有已注册的算子并提交到 Flink 集群
     env.execute("Kafka-to-Paimon Realtime Writer")

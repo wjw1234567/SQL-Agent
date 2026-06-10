@@ -21,7 +21,9 @@
       "Bash(curl -s -o /dev/null -w \"%{http_code}\" --connect-timeout 5 https://docker.xuanyuan.me/v2/)",
       "Bash(curl *)",
       "WebFetch(domain:paimon.apache.org)",
-      "WebFetch(domain:repo1.maven.org)"
+      "WebFetch(domain:repo1.maven.org)",
+      "Bash(docker run *)",
+      "WebFetch(domain:raw.githubusercontent.com)"
     ]
   }
 }

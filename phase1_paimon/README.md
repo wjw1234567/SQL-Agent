@@ -14,22 +14,9 @@
 
 ## 第一节：环境准备
 
-### 1.1 检查环境
+### 1.1 了解 docker-compose-phase1.yml
 
-```bash
-# 确认 Docker 已安装
-docker --version
-
-# 确认 Docker Compose 已安装
-docker compose version
-
-# 确认 Python 已安装
-python --version
-```
-
-### 1.2 了解 docker-compose-phase1.yml
-
-这个文件定义了 4 个服务，它们的关系如下：
+这个文件定义了 6 个服务/容器（其中 1 个是初始化容器，运行后自动退出），它们的关系如下：
 
 ```
 Zookeeper (协调服务)
@@ -39,11 +26,17 @@ Kafka (消息队列)      ← Flink 从这里消费数据
     │
     ▼
 Flink JobManager (作业调度) ──→ Flink TaskManager (作业执行)
-                                   │
-                              Paimon (嵌入 Flink 的表存储)
+                                       │
+                                  ┌────▼────┐
+                                  │  MinIO  │
+                                  │ S3 存储  │
+                                  └─────────┘
+                              Paimon 数据 + checkpoint 存在这里
 ```
 
-**关键点：** Paimon 没有独立容器——它作为 Flink 的连接器 JAR 嵌入在 Flink 进程中运行。
+**关键点：** 
+- Paimon 没有独立容器——它作为 Flink 的连接器 JAR 嵌入在 Flink 进程中运行
+- Paimon 的 warehouse 和 Flink 的 checkpoint 都存储在 MinIO（S3 兼容对象存储）
 
 打开 `docker-compose-phase1.yml`，我们来理解每个服务：
 
@@ -65,6 +58,26 @@ Flink JobManager (作业调度) ──→ Flink TaskManager (作业执行)
 **Flink TaskManager：**
 - `taskmanager.memory.process.size: 4096m` —— 分配 4GB 内存（核心计算资源）
 - `taskmanager.numberOfTaskSlots: 4` —— 每个 TaskManager 可以同时运行 4 个任务
+- `command` 中执行了 `cp /opt/flink/opt/flink-s3-fs-hadoop-*.jar /opt/flink/lib/` —— 启用 Flink 的 S3 文件系统插件，使 Paimon 可以读写 MinIO
+
+**MinIO (端口 9000/9001)：**
+- MinIO 是 S3 兼容的对象存储服务，Paimon 的数据和 Flink 的 checkpoint 都存储在这里
+- 端口 9000 = S3 API（Flink/Paimon 通过此端口读写数据）
+- 端口 9001 = Web 管理控制台（浏览器打开 http://localhost:9001，登录 minioadmin/minioadmin）
+- `../data/minio:/data` —— MinIO 数据持久化到宿主机 D 盘
+
+### 1.2 为什么用 S3 存储？
+
+生产环境中，Paimon 通常使用 HDFS 或 S3 作为存储后端，而不是本地文件系统。本教程使用 MinIO 模拟 S3 环境：
+
+| 组件 | 本教程 | 生产替代 |
+|---|---|---|
+| 存储服务 | MinIO (本地) | AWS S3 / 阿里云 OSS / 腾讯云 COS |
+| 访问协议 | S3 API (http://minio:9000) | S3 API (https) |
+| Bucket | paimon-bucket | 自定义 bucket |
+| 路径格式 | `s3://paimon-bucket/warehouse` | `s3://your-bucket/path` |
+
+如果想切换回本地文件存储，详见文末的"备用方案"说明。
 
 ---
 
@@ -72,18 +85,25 @@ Flink JobManager (作业调度) ──→ Flink TaskManager (作业执行)
 
 ### 2.1 启动所有容器
 
-**不要用 start-phase1.sh，我们一步步来：**
-
 ```bash
 cd phase1_paimon
 
-# 启动所有服务
+# 启动所有服务（会启动 6 个容器，其中 minio-init 初始化完自动退出）
 docker compose -f docker-compose-phase1.yml up -d
 ```
 
 参数说明：
-- `-f` 指定 compose 文件
 - `-d` 后台运行（detached mode），不加的话会在前台打印日志
+
+启动的容器：
+| 容器名 | 作用 |
+|---|---|
+| zk | Zookeeper 协调服务 |
+| kafka | 消息队列 |
+| minio | S3 对象存储 |
+| minio-init | 初始化 bucket（执行完自动退出） |
+| flink-jm | Flink JobManager |
+| flink-tm | Flink TaskManager |
 
 ### 2.2 验证容器是否正常启动
 
@@ -91,25 +111,51 @@ docker compose -f docker-compose-phase1.yml up -d
 # 查看所有运行中的容器
 docker ps
 
-# 你应该看到 4 个容器:
+# 你应该看到 4 个运行中的容器:
 # - zk (Zookeeper)
 # - kafka
+# - minio
 # - flink-jm (Flink JobManager)
 # - flink-tm (Flink TaskManager)
+# minio-init 执行完 bucket 创建后已退出
 
 # 查看各容器日志（确认没有报错）
 docker logs zk --tail 20
 docker logs kafka --tail 20
+docker logs minio --tail 10
 docker logs flink-jm --tail 20
 ```
 
-### 2.3 验证 Flink Web UI
+### 2.3 验证 MinIO
+
+打开浏览器访问 http://localhost:9001，用 `minioadmin` / `minioadmin` 登录。
+
+你应该看到 `paimon-bucket` 已经自动创建好了。这是 Paimon 数据存储的地方。
+
+也可以命令行验证：
+
+```bash
+# 查看 MinIO 中的 bucket
+docker exec minio ls /data
+
+# 应该输出: paimon-bucket
+```
+
+### 2.4 验证 Flink Web UI
 
 打开浏览器访问：http://localhost:8081
 
 你应该能看到 Flink Dashboard，在 Task Managers 页面可以看到 1 个 TaskManager 在线。
 
-### 2.4 验证 Kafka 可用
+### 2.5 验证 Flink S3 插件已加载
+
+```bash
+docker exec flink-jm ls /opt/flink/lib/ | grep s3
+```
+
+如果输出 `flink-s3-fs-hadoop-1.18.1.jar`，说明 S3 插件已就绪。
+
+### 2.6 验证 Kafka 可用
 
 ```bash
 # 检查 Kafka 是否就绪（轮询直到成功）
@@ -124,7 +170,7 @@ docker exec kafka kafka-topics --list --bootstrap-server localhost:9092
 - `--bootstrap-server localhost:9092` —— 连接 Kafka（容器内用 localhost:9092）
 - `--list` —— 列出所有 topic
 
-### 2.5 创建订单 topic
+### 2.7 创建订单 topic
 
 ```bash
 docker exec kafka kafka-topics `
@@ -214,17 +260,30 @@ Flink SQL>
 ```sql
 CREATE CATALOG paimon_catalog WITH (
     'type' = 'paimon',
-    'warehouse' = 'file:///opt/paimon/data/warehouse'
+    'warehouse' = 's3://paimon-bucket/warehouse',
+    's3.endpoint' = 'http://minio:9000',
+    's3.access-key' = 'minioadmin',
+    's3.secret-key' = 'minioadmin',
+    's3.path.style.access' = 'true'
 );
 ```
 
 **参数详解：**
 - `type = 'paimon'` —— Catalog 类型，固定为 'paimon'
-  - `metastore` 默认 `filesystem`（元数据存储在文件系统）
-  - 其他选项：`metastore = 'hive'`（对接 Hive Metastore）
-- `warehouse = 'file:///opt/paimon/data/warehouse'` —— 数据存储根路径
-  - `file://` 表示本地文件系统
-  - 对应的就是 docker-compose 中挂载的 `../data/paimon:/opt/paimon/data`
+- `warehouse = 's3://paimon-bucket/warehouse'` —— 数据存储根路径（MinIO S3）
+  - `s3://` 表示 S3 兼容对象存储
+  - `paimon-bucket` 是自动创建的 bucket
+- `s3.endpoint = 'http://minio:9000'` —— MinIO S3 API 地址
+- `s3.access-key / s3.secret-key` —— MinIO 的登录凭证
+- `s3.path.style.access = 'true'` —— MinIO 使用路径样式访问（必需）
+
+**备用方案（本地文件系统）：**
+```sql
+CREATE CATALOG paimon_catalog WITH (
+    'type' = 'paimon',
+    'warehouse' = 'file:///opt/paimon/data/warehouse'
+);
+```
 
 ### 5.2 使用 Catalog 并创建数据库
 
@@ -431,7 +490,11 @@ ORDER BY revenue DESC;
 
 你会发现数据在不断增长。这是因为流式写入作业持续写入，而批式查询读取最新的 snapshot。
 
-### 7.4 查看 Flink WebUI
+### 7.4 在 MinIO 中查看数据文件
+
+打开 http://localhost:9001，登录 `minioadmin`/`minioadmin`，进入 `paimon-bucket` → `warehouse/demo.db/orders/`，你可以看到 Paimon 存储的数据文件（snapshot、manifest、数据文件）。
+
+### 7.5 查看 Flink WebUI
 
 打开 http://localhost:8081，你会看到正在运行的 DataGen→Paimon 作业。可以在这里：
 - 查看作业的 DAG（算子图）
@@ -587,20 +650,37 @@ quit;
 ```bash
 cd phase1_paimon
 
-# 停止容器（保留数据）
+# 停止容器（保留数据，包括 MinIO 数据）
 docker compose -f docker-compose-phase1.yml down
 
-# 停止容器并删除数据卷
+# 停止容器并删除所有数据卷（包括 MinIO、Kafka 数据）
 # docker compose -f docker-compose-phase1.yml down -v
 ```
 
 ### 10.3 验证清理
 
 ```bash
-docker ps | grep -E "(zk|kafka|flink)"
+docker ps | grep -E "(zk|kafka|flink|minio)"
 ```
 
 不应有任何相关容器在运行。
+
+---
+
+## 备用方案：切换回本地文件系统
+
+如果你不想用 MinIO，想回到本地文件存储，需要修改以下文件：
+
+**1. docker-compose-phase1.yml：**
+- 取消注释 Flink 容器中的 `# - ../data/paimon:/opt/paimon/data` 卷挂载
+- 注释掉 `depends_on: - minio-init`
+
+**2. flink-conf/flink-conf.yaml：**
+- 注释掉 S3 配置行
+- 取消注释 `state.checkpoints.dir: file:///opt/paimon/data/checkpoints`
+
+**3. 01_create_catalog.sql 和 README 中的 SQL 示例：**
+- 使用 `'warehouse' = 'file:///opt/paimon/data/warehouse'` 并去掉 S3 参数
 
 ---
 
