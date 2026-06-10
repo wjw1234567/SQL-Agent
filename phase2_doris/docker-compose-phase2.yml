@@ -75,7 +75,7 @@ services:
     entrypoint: >
       /bin/sh -c "
       echo 'Waiting for MinIO...';
-      until (/usr/bin/mc config host add myminio http://minio:9000 minioadmin minioadmin) do sleep 2; done;
+      until (/usr/bin/mc alias set myminio http://minio:9000 minioadmin minioadmin) do sleep 2; done;
       echo 'Creating bucket paimon-bucket...';
       /usr/bin/mc mb myminio/paimon-bucket --ignore-existing;
       echo 'Bucket created successfully';
