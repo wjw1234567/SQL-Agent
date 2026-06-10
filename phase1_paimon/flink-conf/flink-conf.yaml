@@ -16,6 +16,9 @@ s3.path.style.access: true
 s3.access-key: minioadmin
 s3.secret-key: minioadmin
 
+# Pekko frame size - increase for S3 filesystem
+pekko.framesize: 256m
+
 # Paimon specific
 # Paimon jars must be placed in /opt/flink/lib/ or added via ADD JAR
 blob.server.port: 6124
