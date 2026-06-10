@@ -33,3 +33,39 @@ query.server.port: 6125
 # s3.path.style.access:
 # s3.access-key:
 # s3.secret-key:
+
+jobmanager.rpc.address: flink-jm
+jobmanager.memory.process.size: 2048m
+
+
+jobmanager.rpc.address: flink-jm
+jobmanager.memory.process.size: 2048m
+
+
+jobmanager.rpc.address: flink-jm
+taskmanager.memory.process.size: 4096m
+taskmanager.numberOfTaskSlots: 4
+
+
+jobmanager.rpc.address: flink-jm
+taskmanager.memory.process.size: 4096m
+taskmanager.numberOfTaskSlots: 4
+
+
+jobmanager.rpc.address: flink-jm
+jobmanager.memory.process.size: 2048m
+
+
+jobmanager.rpc.address: flink-jm
+jobmanager.memory.process.size: 2048m
+
+
+jobmanager.rpc.address: flink-jm
+taskmanager.memory.process.size: 4096m
+taskmanager.numberOfTaskSlots: 4
+
+
+jobmanager.rpc.address: flink-jm
+taskmanager.memory.process.size: 4096m
+taskmanager.numberOfTaskSlots: 4
+
