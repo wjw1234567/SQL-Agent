@@ -1,0 +1,83 @@
+version: '3.8'
+
+# ================================================================
+# Milvus Standalone 集群 — 用于 Phase 2 和 Phase 3 的向量检索
+# ================================================================
+# 三个服务:
+#   etcd  — Milvus 的元数据存储（类比 Hive Metastore）
+#   MinIO — 向量数据持久化（类比 HDFS/S3）
+#   Milvus — 向量检索引擎（核心服务）
+#
+# 为什么需要三个?
+#   Milvus 使用 etcd 存储集合/索引的元信息（类似 MySQL 的 information_schema）
+#   MinIO 存储实际的向量文件和索引文件（类似 MySQL 的 .ibd 文件）
+#   Milvus 本身只做计算和查询
+# ================================================================
+
+networks:
+  milvus-net:
+    driver: bridge
+
+services:
+  etcd:
+    container_name: milvus-etcd
+    image: quay.io/coreos/etcd:v3.5.16
+    environment:
+      - ETCD_AUTO_COMPACTION_MODE=revision
+      - ETCD_AUTO_COMPACTION_RETENTION=1000
+      - ETCD_QUOTA_BACKEND_BYTES=4294967296
+      - ETCD_SNAPSHOT_COUNT=50000
+    volumes:
+      - etcd-data:/etcd
+    command: |
+      etcd --advertise-client-urls=http://0.0.0.0:2379
+           --listen-client-urls=http://0.0.0.0:2379
+           --data-dir=/etcd
+           --initial-cluster-token=etcd-cluster
+           --initial-cluster=default=http://0.0.0.0:2380
+           --initial-cluster-state=new
+    mem_limit: 512m
+    networks:
+      - milvus-net
+
+  minio:
+    container_name: milvus-minio
+    image: minio/minio:RELEASE.2024-11-17T00-27-20Z
+    environment:
+      MINIO_ACCESS_KEY: minioadmin
+      MINIO_SECRET_KEY: minioadmin
+    volumes:
+      - minio-data:/minio_data
+    command: minio server /minio_data --console-address ":9001"
+    ports:
+      - "9000:9000"   # S3 API
+      - "9001:9001"   # MinIO Console (WebUI)
+    mem_limit: 512m
+    networks:
+      - milvus-net
+
+  milvus:
+    container_name: milvus-standalone
+    image: milvusdb/milvus:v2.5.4
+    command: milvus run standalone
+    environment:
+      ETCD_ENDPOINTS: etcd:2379
+      MINIO_ADDRESS: minio:9000
+      MINIO_ACCESS_KEY: minioadmin
+      MINIO_SECRET_KEY: minioadmin
+      MINIO_BUCKET_NAME: milvus-bucket
+      # 默认不加载 GPU 索引，避免和 Ollama 抢显存
+      # KNOWHERE_GPU_RESOURCE_ENABLE: "true"
+    ports:
+      - "19530:19530"   # gRPC 客户端端口（pymilvus 连接用）
+      - "9091:9091"     # HTTP API + Milvus WebUI
+    depends_on:
+      - etcd
+      - minio
+    mem_limit: 4g
+    networks:
+      - milvus-net
+
+volumes:
+  etcd-data:
+  minio-data:

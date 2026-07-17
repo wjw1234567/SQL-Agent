@@ -1,0 +1,562 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>本地 RAG 智能问答</title>
+    <style>
+        /* ================================================================
+           全局样式
+           ================================================================ */
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto,
+                         "Helvetica Neue", Arial, "Noto Sans SC", sans-serif;
+            background: #f0f2f5;
+            height: 100vh;
+            display: flex;
+            flex-direction: column;
+        }
+
+        /* ================================================================
+           顶部导航栏
+           ================================================================ */
+        .navbar {
+            background: linear-gradient(135deg, #1a73e8, #1557b0);
+            color: white;
+            padding: 16px 24px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.15);
+            flex-shrink: 0;
+        }
+
+        .navbar h1 {
+            font-size: 18px;
+            font-weight: 600;
+        }
+
+        .navbar .subtitle {
+            font-size: 12px;
+            opacity: 0.8;
+            margin-top: 2px;
+        }
+
+        .navbar .status {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            font-size: 13px;
+        }
+
+        .status-dot {
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            background: #4caf50;
+            display: inline-block;
+        }
+
+        .status-dot.error {
+            background: #f44336;
+        }
+
+        /* ================================================================
+           聊天主区域
+           ================================================================ */
+        .chat-container {
+            flex: 1;
+            overflow-y: auto;
+            padding: 20px 0;
+            scroll-behavior: smooth;
+        }
+
+        .messages {
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 0 20px;
+        }
+
+        /* ---- 单条消息 ---- */
+        .message {
+            display: flex;
+            gap: 12px;
+            margin-bottom: 24px;
+            animation: fadeIn 0.3s ease;
+        }
+
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(10px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        .message .avatar {
+            width: 36px;
+            height: 36px;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 16px;
+            flex-shrink: 0;
+        }
+
+        .message.user {
+            flex-direction: row-reverse;
+        }
+
+        .message.user .avatar {
+            background: #e3f2fd;
+            color: #1a73e8;
+        }
+
+        .message.assistant .avatar {
+            background: linear-gradient(135deg, #1a73e8, #1557b0);
+            color: white;
+        }
+
+        .message .bubble {
+            max-width: 75%;
+            padding: 12px 16px;
+            border-radius: 12px;
+            line-height: 1.6;
+            font-size: 14px;
+            word-break: break-word;
+        }
+
+        .message.user .bubble {
+            background: #1a73e8;
+            color: white;
+            border-bottom-right-radius: 4px;
+        }
+
+        .message.assistant .bubble {
+            background: white;
+            color: #333;
+            border: 1px solid #e8e8e8;
+            border-bottom-left-radius: 4px;
+        }
+
+        .message.assistant .bubble p {
+            margin-bottom: 8px;
+        }
+
+        .message.assistant .bubble p:last-child {
+            margin-bottom: 0;
+        }
+
+        /* ---- 打字光标动画 ---- */
+        .typing-cursor::after {
+            content: "▊";
+            animation: blink 1s infinite;
+            color: #1a73e8;
+            margin-left: 2px;
+        }
+
+        @keyframes blink {
+            0%, 50% { opacity: 1; }
+            51%, 100% { opacity: 0; }
+        }
+
+        /* ---- 来源引用 ---- */
+        .source-info {
+            margin-top: 8px;
+            padding-top: 8px;
+            border-top: 1px solid #eee;
+            font-size: 12px;
+            color: #888;
+        }
+
+        .source-tag {
+            display: inline-block;
+            background: #e8f0fe;
+            color: #1a73e8;
+            padding: 2px 8px;
+            border-radius: 4px;
+            margin-right: 4px;
+            margin-bottom: 4px;
+            font-size: 11px;
+        }
+
+        /* ---- 欢迎消息 ---- */
+        .welcome {
+            text-align: center;
+            padding: 60px 20px;
+            color: #999;
+        }
+
+        .welcome h2 {
+            font-size: 24px;
+            color: #333;
+            margin-bottom: 12px;
+        }
+
+        .welcome p {
+            font-size: 14px;
+            line-height: 1.8;
+        }
+
+        .welcome .hint {
+            margin-top: 24px;
+            padding: 16px;
+            background: #f5f5f5;
+            border-radius: 8px;
+            display: inline-block;
+            text-align: left;
+        }
+
+        /* ================================================================
+           底部输入区
+           ================================================================ */
+        .input-area {
+            border-top: 1px solid #e0e0e0;
+            background: white;
+            padding: 16px 24px;
+            flex-shrink: 0;
+        }
+
+        .input-wrapper {
+            max-width: 800px;
+            margin: 0 auto;
+            display: flex;
+            gap: 12px;
+            align-items: flex-end;
+        }
+
+        .input-wrapper textarea {
+            flex: 1;
+            border: 1px solid #d0d0d0;
+            border-radius: 12px;
+            padding: 12px 16px;
+            font-size: 14px;
+            line-height: 1.5;
+            resize: none;
+            outline: none;
+            font-family: inherit;
+            transition: border-color 0.2s;
+            max-height: 120px;
+            min-height: 44px;
+        }
+
+        .input-wrapper textarea:focus {
+            border-color: #1a73e8;
+            box-shadow: 0 0 0 2px rgba(26,115,232,0.15);
+        }
+
+        .input-wrapper textarea:disabled {
+            background: #f5f5f5;
+        }
+
+        .send-btn {
+            background: #1a73e8;
+            color: white;
+            border: none;
+            border-radius: 12px;
+            width: 44px;
+            height: 44px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            font-size: 18px;
+            transition: background 0.2s;
+            flex-shrink: 0;
+        }
+
+        .send-btn:hover {
+            background: #1557b0;
+        }
+
+        .send-btn:disabled {
+            background: #ccc;
+            cursor: not-allowed;
+        }
+
+        /* ---- 底部提示文字 ---- */
+        .footer-note {
+            text-align: center;
+            font-size: 11px;
+            color: #aaa;
+            padding: 8px;
+        }
+
+        /* ================================================================
+           响应式
+           ================================================================ */
+        @media (max-width: 600px) {
+            .navbar h1 { font-size: 16px; }
+            .navbar .status { font-size: 11px; }
+            .message .bubble { max-width: 85%; font-size: 13px; }
+            .chat-container { padding: 12px 0; }
+            .messages { padding: 0 12px; }
+            .input-area { padding: 12px; }
+        }
+    </style>
+</head>
+<body>
+
+    <!-- ============================================================
+    顶部导航栏
+    ============================================================ -->
+    <div class="navbar">
+        <div>
+            <h1>📚 本地 RAG 智能问答</h1>
+            <div class="subtitle">Qwen3.5 + BGE-M3 + ChromaDB</div>
+        </div>
+        <div class="status">
+            <span class="status-dot" id="statusDot"></span>
+            <span id="statusText">连接中...</span>
+        </div>
+    </div>
+
+    <!-- ============================================================
+    聊天区域
+    ============================================================ -->
+    <div class="chat-container" id="chatContainer">
+        <div class="messages" id="messages">
+
+            <!-- 欢迎消息 -->
+            <div class="welcome" id="welcomeMsg">
+                <h2>👋 你好！我是你的本地知识库助手</h2>
+                <p>
+                    我已经读取了你放在 <code>watch_folder</code> 中的文档。<br>
+                    你可以问我任何关于这些文档内容的问题。
+                </p>
+                <div class="hint">
+                    💡 试试问：<br>
+                    "文档中主要讲了什么？"<br>
+                    "帮我总结一下报告的核心内容"<br>
+                    "关于 XX 问题，文档是怎么说的？"
+                </div>
+            </div>
+
+        </div>
+    </div>
+
+    <!-- ============================================================
+    底部输入区
+    ============================================================ -->
+    <div class="input-area">
+        <div class="input-wrapper">
+            <textarea id="inputBox" rows="1"
+                placeholder="输入你的问题... (Enter 发送, Shift+Enter 换行)"
+                oninput="autoResize(this)"
+            ></textarea>
+            <button class="send-btn" id="sendBtn" onclick="sendMessage()">
+                ➤
+            </button>
+        </div>
+        <div class="footer-note">
+            回答由本地 Qwen3.5 生成，基于 watch_folder 中的文档内容
+        </div>
+    </div>
+
+    <!-- ============================================================
+    JavaScript
+    ============================================================ -->
+    <script>
+        // ----- DOM 引用 -----
+        const messagesDiv = document.getElementById('messages');
+        const inputBox = document.getElementById('inputBox');
+        const sendBtn = document.getElementById('sendBtn');
+        const chatContainer = document.getElementById('chatContainer');
+        const statusDot = document.getElementById('statusDot');
+        const statusText = document.getElementById('statusText');
+        const welcomeMsg = document.getElementById('welcomeMsg');
+
+        // ----- 状态 -----
+        let isStreaming = false;   // 是否正在接收回答
+        let currentAbort = null;   // 用于中断当前请求
+
+        // ----- 系统状态检测 -----
+        async function checkStatus() {
+            try {
+                const resp = await fetch('/stats');
+                const data = await resp.json();
+
+                if (data.index && data.index.total_chunks > 0) {
+                    statusDot.className = 'status-dot';
+                    statusText.textContent =
+                        `就绪 · ${data.index.total_chunks} 个文本块 · ${data.index.sources.length} 个文件`;
+                } else {
+                    statusDot.className = 'status-dot';
+                    statusText.textContent = '就绪 · 知识库为空（请放入文档后刷新）';
+                }
+            } catch (e) {
+                statusDot.className = 'status-dot error';
+                statusText.textContent = '服务未就绪';
+            }
+        }
+        checkStatus();
+        // 每隔 10 秒刷新状态
+        setInterval(checkStatus, 10000);
+
+        // ============================================================
+        //  发送消息
+        // ============================================================
+        function sendMessage() {
+            const text = inputBox.value.trim();
+            if (!text || isStreaming) return;
+
+            // ---- 隐藏欢迎消息 ----
+            welcomeMsg.style.display = 'none';
+
+            // ---- 显示用户消息 ----
+            appendMessage('user', text);
+
+            // ---- 清空输入框 ----
+            inputBox.value = '';
+            autoResize(inputBox);
+
+            // ---- 创建 AI 消息容器 ----
+            const msgDiv = document.createElement('div');
+            msgDiv.className = 'message assistant';
+            msgDiv.innerHTML = `
+                <div class="avatar">🤖</div>
+                <div class="bubble">
+                    <div class="bubble-content"></div>
+                    <div class="typing-cursor"></div>
+                </div>
+            `;
+            messagesDiv.appendChild(msgDiv);
+
+            const contentDiv = msgDiv.querySelector('.bubble-content');
+            const cursor = msgDiv.querySelector('.typing-cursor');
+
+            // ---- 使用 SSE (Server-Sent Events) 流式接收 ----
+            isStreaming = true;
+            sendBtn.disabled = true;
+            inputBox.disabled = true;
+            scrollToBottom();
+
+            // SSE 通过 EventSource API 连接
+            // 对中文字符进行 URL 编码
+            const encodedQuery = encodeURIComponent(text);
+            const eventSource = new EventSource(`/ask/stream?query=${encodedQuery}`);
+
+            let sourcesData = null;
+
+            eventSource.onmessage = function(event) {
+                const rawData = event.data;
+
+                // 结束标志
+                if (rawData === '[DONE]') {
+                    eventSource.close();
+                    finishStream();
+                    return;
+                }
+
+                try {
+                    const data = JSON.parse(rawData);
+
+                    if (data.type === 'token') {
+                        // 追加 token 到气泡
+                        // 把 \n 转为 <br> 以保留换行
+                        const tokenText = data.content
+                            .replace(/\n/g, '<br>')
+                            .replace(/ /g, '&nbsp;');
+                        contentDiv.innerHTML += tokenText;
+                        scrollToBottom();
+                    }
+                    else if (data.type === 'sources') {
+                        // 来源信息
+                        sourcesData = data.content;
+                    }
+                } catch (e) {
+                    // 非 JSON 数据忽略
+                }
+            };
+
+            eventSource.onerror = function() {
+                eventSource.close();
+                // 如果没有任何内容，显示错误信息
+                if (contentDiv.innerHTML === '') {
+                    contentDiv.innerHTML = '⚠️ 服务连接异常，请检查后端是否在运行。';
+                }
+                finishStream();
+            };
+
+            function finishStream() {
+                // 移除光标动画
+                if (cursor) cursor.remove();
+                isStreaming = false;
+                sendBtn.disabled = false;
+                inputBox.disabled = false;
+                inputBox.focus();
+
+                // 添加来源信息
+                if (sourcesData && sourcesData.length > 0) {
+                    const srcDiv = document.createElement('div');
+                    srcDiv.className = 'source-info';
+                    srcDiv.innerHTML = '📎 参考来源：' +
+                        sourcesData.map(s =>
+                            `<span class="source-tag">${s.source} (${(s.score * 100).toFixed(0)}%)</span>`
+                        ).join('');
+                    contentDiv.appendChild(srcDiv);
+                    scrollToBottom();
+                }
+            }
+        }
+
+        // ============================================================
+        //  在聊天区域添加一条消息
+        // ============================================================
+        function appendMessage(role, text) {
+            const div = document.createElement('div');
+            div.className = `message ${role}`;
+
+            if (role === 'user') {
+                div.innerHTML = `
+                    <div class="avatar">👤</div>
+                    <div class="bubble">${escapeHtml(text)}</div>
+                `;
+            }
+
+            messagesDiv.appendChild(div);
+            scrollToBottom();
+        }
+
+        // ============================================================
+        //  工具函数
+        // ============================================================
+
+        // 自动调整 textarea 高度
+        function autoResize(textarea) {
+            textarea.style.height = 'auto';
+            textarea.style.height = Math.min(textarea.scrollHeight, 120) + 'px';
+        }
+
+        // 滚动到底部
+        function scrollToBottom() {
+            setTimeout(() => {
+                chatContainer.scrollTop = chatContainer.scrollHeight;
+            }, 50);
+        }
+
+        // HTML 转义（防止 XSS）
+        function escapeHtml(text) {
+            const div = document.createElement('div');
+            div.textContent = text;
+            return div.innerHTML.replace(/\n/g, '<br>');
+        }
+
+        // ----- 键盘事件 -----
+        inputBox.addEventListener('keydown', function(e) {
+            if (e.key === 'Enter' && !e.shiftKey) {
+                e.preventDefault();
+                sendMessage();
+            }
+        });
+
+        // 首次加载聚焦输入框
+        inputBox.focus();
+    </script>
+
+</body>
+</html>

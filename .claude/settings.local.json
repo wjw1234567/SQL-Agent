@@ -1,0 +1,9 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(find \"D:\\\\Pycharm_Project\\\\SQL-Agent\" -not -path '*/\\\\.*' -type f)",
+      "Bash(git add *)",
+      "Bash(git commit *)"
+    ]
+  }
+}
